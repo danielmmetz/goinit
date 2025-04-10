@@ -13,7 +13,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,7 +25,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,8 +40,9 @@ const root = `
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	if err := mainE(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	if err := mainE(ctx, logger); err != nil {
+		logger.ErrorContext(ctx, "exiting with error", slog.Any("err", err))
 		// Only exit non-zero if our initial context has yet to be canceled.
 		// Otherwise it's very likely that the error we're seeing is a result of our attempt at graceful shutdown.
 		if ctx.Err() == nil {
@@ -52,13 +53,13 @@ func main() {
 `
 
 const mainE = `
-func mainE(ctx context.Context) error {
+func mainE(ctx context.Context, _ *slog.Logger) error {
 	return nil
 }
 `
 
 const mainEWithHTTPServer = `
-func mainE(ctx context.Context) error {
+func mainE(ctx context.Context, _ *slog.Logger) error {
 	s := http.Server{Addr: "localhost:8080"}
 	var eg errgroup.Group
 	eg.Go(func() error {
@@ -85,7 +86,7 @@ func main() {
 	flag.Parse()
 
 	if _, err := os.Stat("main.go"); !os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "main.go already exists", err)
+		fmt.Fprintln(os.Stderr, "main.go already exists")
 		os.Exit(1)
 	}
 
@@ -121,7 +122,7 @@ func main() {
 		content = append(content, []byte(mainE)...)
 	}
 
-	if err := os.WriteFile("main.go", bytes.TrimSpace([]byte(content)), 0644); err != nil {
+	if err := os.WriteFile("main.go", bytes.TrimSpace([]byte(content)), 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}

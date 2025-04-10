@@ -16,3 +16,36 @@ Usage of goinit:
   -module-name string
         create a go module with this name
 ```
+
+#### Example
+
+For a vanilla run (without specifying `-http-server`), it generates a file like:
+```go
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+)
+
+func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	if err := mainE(ctx, logger); err != nil {
+		logger.ErrorContext(ctx, "exiting with error", slog.Any("err", err))
+		// Only exit non-zero if our initial context has yet to be canceled.
+		// Otherwise it's very likely that the error we're seeing is a result of our attempt at graceful shutdown.
+		if ctx.Err() == nil {
+			os.Exit(1)
+		}
+	}
+}
+
+func mainE(ctx context.Context, _ *slog.Logger) error {
+	return nil
+}
+```
